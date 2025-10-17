@@ -1,0 +1,21 @@
+# English Language File for RealCarry
+
+# Messages
+cannot-carry: "&cYou cannot carry this block!"
+already-carrying: "&cYou must place what you are carrying first!"
+carry-success: "&aYou are now carrying a block! Release sneak to place it."
+place-success: "&aYou have placed it down!"
+carry-entity-success: "&aYou are now carrying it! Release sneak to place it down."
+cannot-carry-entity: "&cYou cannot carry this entity!"
+
+# --- Entity Blacklist ---
+# A list of entities that players are NOT allowed to carry.
+# Use official entity type names from Minecraft.
+entity-blacklist:
+  - "player"
+  - "ender_dragon"
+  - "wither"
+  - "item_frame"
+  - "painting"
+  - "falling_block"
+  - "armor_stand"
