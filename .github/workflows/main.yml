@@ -31,13 +31,13 @@ jobs:
       - name: Find Artifact JAR
         id: find_jar
         run: |
-          echo "JAR_PATH=$(find target/ -name 'RealisticFire-*.jar' -print -quit)" >> $GITHUB_ENV
+          echo "JAR_PATH=$(find target/ -name 'RealCarry-*.jar' -print -quit)" >> $GITHUB_ENV
 
       # 5. Upload Artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RealisticFire-Plugin
+          name: RealCarry-Plugin
           path: ${{ env.JAR_PATH }}
           if-no-files-found: error
           
