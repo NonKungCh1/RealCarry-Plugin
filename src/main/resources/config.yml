@@ -1,0 +1,6 @@
+# RealCarry Plugin Configuration
+# by NonKungCH
+
+# Set the language file for plugin messages.
+# This should match a file name in the 'lang' folder (e.g., 'en', 'th').
+language: 'en'
