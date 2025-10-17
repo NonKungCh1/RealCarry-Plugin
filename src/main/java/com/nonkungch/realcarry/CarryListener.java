@@ -5,31 +5,35 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.Arrays;
 
 public class CarryListener implements Listener {
 
     private final RealCarry plugin;
-    private final HashMap<UUID, FallingBlock> carriedBlocks = new HashMap<>();
+    private final HashMap<UUID, Entity> carriedThings = new HashMap<>();
+    private final HashMap<UUID, ItemStack[]> carriedInventories = new HashMap<>();
 
     private static final List<Material> BLACKLISTED_BLOCKS = Arrays.asList(
-            Material.BEDROCK, Material.COMMAND_BLOCK, Material.CHAIN_COMMAND_BLOCK,
-            Material.REPEATING_COMMAND_BLOCK, Material.BARRIER, Material.SPAWNER,
-            Material.END_PORTAL_FRAME, Material.END_PORTAL, Material.NETHER_PORTAL
+            Material.BEDROCK
     );
 
     public CarryListener(RealCarry plugin) {
@@ -37,108 +41,137 @@ public class CarryListener implements Listener {
     }
 
     @EventHandler
+    public void onEntityInteract(PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
+        if (player.isSneaking() &&
+            player.getInventory().getItemInMainHand().getType() == Material.AIR &&
+            !carriedThings.containsKey(player.getUniqueId()) &&
+            player.hasPermission("realcarry.carry.entity")) {
+
+            Entity clickedEntity = event.getRightClicked();
+            List<String> blacklist = plugin.getLangConfig().getStringList("entity-blacklist");
+            
+            if (blacklist.contains(clickedEntity.getType().name().toLowerCase())) {
+                player.sendMessage(plugin.getMessage("cannot-carry-entity"));
+                return;
+            }
+
+            player.addPassenger(clickedEntity);
+            carriedThings.put(player.getUniqueId(), clickedEntity);
+            clickedEntity.setMetadata("CarriedEntity", new FixedMetadataValue(plugin, true));
+
+            player.sendMessage(plugin.getMessage("carry-entity-success"));
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
     public void onBlockInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        UUID playerUUID = player.getUniqueId();
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND) return;
 
-        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && player.isSneaking() &&
+        if (player.isSneaking() &&
             player.getInventory().getItemInMainHand().getType() == Material.AIR &&
-            !carriedBlocks.containsKey(playerUUID) && player.hasPermission("realcarry.carry.block")) {
+            !carriedThings.containsKey(player.getUniqueId()) &&
+            player.hasPermission("realcarry.carry.block")) {
 
             Block clickedBlock = event.getClickedBlock();
             if (clickedBlock == null || BLACKLISTED_BLOCKS.contains(clickedBlock.getType())) {
-                player.sendMessage("§cคุณไม่สามารถอุ้มบล็อกนี้ได้!");
+                player.sendMessage(plugin.getMessage("cannot-carry"));
                 return;
+            }
+
+            if (clickedBlock.getState() instanceof InventoryHolder) {
+                InventoryHolder container = (InventoryHolder) clickedBlock.getState();
+                ItemStack[] items = container.getInventory().getContents();
+                carriedInventories.put(player.getUniqueId(), Arrays.stream(items)
+                        .map(item -> item == null ? null : item.clone())
+                        .toArray(ItemStack[]::new));
+                container.getInventory().clear();
             }
 
             if (player.getGameMode() == GameMode.SURVIVAL) {
                 event.setCancelled(true);
             }
 
-            // --- ส่วนที่แก้ไข ---
-            // 1. ดึงข้อมูล BlockData มาก่อน
             BlockData blockData = clickedBlock.getBlockData();
             Location spawnLocation = clickedBlock.getLocation().add(0.5, 0, 0.5);
-
-            // 2. ลบบล็อกจริงออกจากโลกก่อน
             clickedBlock.setType(Material.AIR);
 
-            // 3. สร้าง FallingBlock ด้วยเมธอดที่ถูกต้อง คือ world.spawnFallingBlock
             FallingBlock fallingBlock = player.getWorld().spawnFallingBlock(spawnLocation, blockData);
-
-            // 4. ตั้งค่าอื่นๆ ให้กับ FallingBlock ที่สร้างขึ้นมา
             fallingBlock.setGravity(false);
             fallingBlock.setInvulnerable(true);
             fallingBlock.setDropItem(false);
-            // --- จบส่วนที่แก้ไข ---
-
-
-            fallingBlock.setMetadata("CarriedBlock", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
+            fallingBlock.setMetadata("CarriedBlock", new FixedMetadataValue(plugin, true));
 
             player.addPassenger(fallingBlock);
-            carriedBlocks.put(playerUUID, fallingBlock);
+            carriedThings.put(player.getUniqueId(), fallingBlock);
 
-            player.sendMessage("§aคุณอุ้มบล็อกขึ้นมาแล้ว! กด Shift อีกครั้งเพื่อวาง");
-            return;
-        }
-
-        if (carriedBlocks.containsKey(playerUUID)) {
-            player.sendMessage("§cคุณต้องวางบล็อกลงก่อน!");
+            player.sendMessage(plugin.getMessage("carry-success"));
+        } else if (carriedThings.containsKey(player.getUniqueId())) {
+            player.sendMessage(plugin.getMessage("already-carrying"));
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerSneak(PlayerToggleSneakEvent event) {
-        Player player = event.getPlayer();
-        UUID playerUUID = player.getUniqueId();
-
-        if (!event.isSneaking() && carriedBlocks.containsKey(playerUUID)) {
-            FallingBlock fallingBlock = carriedBlocks.get(playerUUID);
-            player.eject();
-            Location dropLocation = player.getLocation().getBlock().getLocation();
-            dropLocation.getBlock().setBlockData(fallingBlock.getBlockData());
-            fallingBlock.remove();
-            carriedBlocks.remove(playerUUID);
-            player.sendMessage("§aคุณวางบล็อกลงแล้ว!");
+        if (!event.isSneaking() && carriedThings.containsKey(event.getPlayer().getUniqueId())) {
+            dropCarriedThing(event.getPlayer());
+            event.getPlayer().sendMessage(plugin.getMessage("place-success"));
         }
     }
 
     @EventHandler
     public void onFallingBlockLand(EntityChangeBlockEvent event) {
-        if (event.getEntity() instanceof FallingBlock) {
-            if (event.getEntity().hasMetadata("CarriedBlock")) {
-                event.setCancelled(true);
-            }
+        if (event.getEntity() instanceof FallingBlock && event.getEntity().hasMetadata("CarriedBlock")) {
+            event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-        if (carriedBlocks.containsKey(player.getUniqueId())) {
-            dropCarriedBlock(player);
+        if (carriedThings.containsKey(event.getPlayer().getUniqueId())) {
+            dropCarriedThing(event.getPlayer());
         }
     }
 
-    private void dropCarriedBlock(Player player) {
+    private void dropCarriedThing(Player player) {
         UUID playerUUID = player.getUniqueId();
-        if (carriedBlocks.containsKey(playerUUID)) {
-            FallingBlock fallingBlock = carriedBlocks.get(playerUUID);
-            player.eject();
-            Location dropLocation = player.getLocation().getBlock().getLocation();
-            dropLocation.getBlock().setBlockData(fallingBlock.getBlockData());
+        Entity thing = carriedThings.get(playerUUID);
+        if (thing == null) return;
+
+        player.removePassenger(thing);
+
+        if (thing instanceof FallingBlock) {
+            FallingBlock fallingBlock = (FallingBlock) thing;
+            Block blockToPlace = player.getLocation().getBlock();
+            blockToPlace.setBlockData(fallingBlock.getBlockData());
+
+            if (carriedInventories.containsKey(playerUUID)) {
+                if (blockToPlace.getState() instanceof InventoryHolder) {
+                    ((InventoryHolder) blockToPlace.getState()).getInventory().setContents(carriedInventories.get(playerUUID));
+                }
+                carriedInventories.remove(playerUUID);
+            }
             fallingBlock.remove();
-            carriedBlocks.remove(playerUUID);
+        } else {
+            thing.teleport(player.getLocation().add(player.getLocation().getDirection().multiply(1.5)));
+            thing.removeMetadata("CarriedEntity", plugin);
         }
+        carriedThings.remove(playerUUID);
     }
 
-    public void dropAllCarriedBlocks() {
-        for (UUID playerUUID : carriedBlocks.keySet()) {
+    public void dropAllCarriedThings() {
+        for (UUID playerUUID : carriedThings.keySet()) {
             Player player = plugin.getServer().getPlayer(playerUUID);
             if (player != null && player.isOnline()) {
-                dropCarriedBlock(player);
+                dropCarriedThing(player);
             }
         }
+        carriedThings.clear();
+        carriedInventories.clear();
     }
 }
