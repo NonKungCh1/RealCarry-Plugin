@@ -1,0 +1,43 @@
+name: Maven Build and Deploy to Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout code
+      - uses: actions/checkout@v4
+
+      # 2. Set up JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      # 3. Build ด้วย Maven
+      - name: Build with Maven
+        run: mvn clean package -B
+
+      # 4. ค้นหา JAR Artifact
+      - name: Find Artifact JAR
+        id: find_jar
+        run: |
+          echo "JAR_PATH=$(find target/ -name 'RealisticFire-*.jar' -print -quit)" >> $GITHUB_ENV
+
+      # 5. Upload Artifact
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RealisticFire-Plugin
+          path: ${{ env.JAR_PATH }}
+          if-no-files-found: error
+          

@@ -1,0 +1,6 @@
+name: RealisticFire
+version: 1.0
+main: com.nonkungch.realisticfire.RealisticFire
+api-version: 1.21
+author: NonKungCh
+description: Makes fire sources extinguish in the rain.
