@@ -4,7 +4,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Entity;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,10 +24,8 @@ import java.util.UUID;
 public class CarryListener implements Listener {
 
     private final RealCarry plugin;
-    // ใช้เก็บว่าผู้เล่นคนไหนกำลังอุ้มบล็อกอะไรอยู่
     private final HashMap<UUID, FallingBlock> carriedBlocks = new HashMap<>();
 
-    // รายชื่อบล็อกที่ไม่อนุญาตให้อุ้ม
     private static final List<Material> BLACKLISTED_BLOCKS = Arrays.asList(
             Material.BEDROCK, Material.COMMAND_BLOCK, Material.CHAIN_COMMAND_BLOCK,
             Material.REPEATING_COMMAND_BLOCK, Material.BARRIER, Material.SPAWNER,
@@ -38,13 +36,11 @@ public class CarryListener implements Listener {
         this.plugin = plugin;
     }
 
-    // --- Logic การอุ้มและวางบล็อก ---
     @EventHandler
     public void onBlockInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
 
-        // 1. Logic การอุ้มบล็อก
         if (event.getAction() == Action.RIGHT_CLICK_BLOCK && player.isSneaking() &&
             player.getInventory().getItemInMainHand().getType() == Material.AIR &&
             !carriedBlocks.containsKey(playerUUID) && player.hasPermission("realcarry.carry.block")) {
@@ -55,73 +51,68 @@ public class CarryListener implements Listener {
                 return;
             }
 
-            // ถ้าเป็น Survival Mode จะยกเลิกไม่ให้เปิด Chest
             if (player.getGameMode() == GameMode.SURVIVAL) {
                 event.setCancelled(true);
             }
 
-            // สร้าง FallingBlock ขึ้นมาแทนที่บล็อกจริง
-            Location blockLocation = clickedBlock.getLocation().add(0.5, 0, 0.5);
-            FallingBlock fallingBlock = player.getWorld().spawn(blockLocation, FallingBlock.class, (fb) -> {
-                fb.setBlockData(clickedBlock.getBlockData());
-                fb.setGravity(false); // ไม่ให้บล็อกร่วง
-                fb.setInvulnerable(true); // ทำให้บล็อกไม่ถูกทำลาย
-                fb.setDropItem(false); // ไม่ให้ดรอปเป็นไอเทม
-            });
+            // --- ส่วนที่แก้ไข ---
+            // 1. ดึงข้อมูล BlockData มาก่อน
+            BlockData blockData = clickedBlock.getBlockData();
+            Location spawnLocation = clickedBlock.getLocation().add(0.5, 0, 0.5);
 
-            // เพิ่ม Metadata เพื่อให้รู้ว่าบล็อกนี้เป็นของเรา
+            // 2. ลบบล็อกจริงออกจากโลกก่อน
+            clickedBlock.setType(Material.AIR);
+
+            // 3. สร้าง FallingBlock ด้วยเมธอดที่ถูกต้อง คือ world.spawnFallingBlock
+            FallingBlock fallingBlock = player.getWorld().spawnFallingBlock(spawnLocation, blockData);
+
+            // 4. ตั้งค่าอื่นๆ ให้กับ FallingBlock ที่สร้างขึ้นมา
+            fallingBlock.setGravity(false);
+            fallingBlock.setInvulnerable(true);
+            fallingBlock.setDropItem(false);
+            // --- จบส่วนที่แก้ไข ---
+
+
             fallingBlock.setMetadata("CarriedBlock", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
 
-            // เอาบล็อกไปขี่บนหัวผู้เล่น
             player.addPassenger(fallingBlock);
             carriedBlocks.put(playerUUID, fallingBlock);
 
-            // ลบบล็อกออกจากโลก
-            clickedBlock.setType(Material.AIR);
             player.sendMessage("§aคุณอุ้มบล็อกขึ้นมาแล้ว! กด Shift อีกครั้งเพื่อวาง");
             return;
         }
 
-        // 2. ป้องกันการกระทำระหว่างอุ้ม
         if (carriedBlocks.containsKey(playerUUID)) {
             player.sendMessage("§cคุณต้องวางบล็อกลงก่อน!");
             event.setCancelled(true);
         }
     }
 
-    // --- Logic การวางบล็อกด้วยการกด Shift ---
     @EventHandler
     public void onPlayerSneak(PlayerToggleSneakEvent event) {
         Player player = event.getPlayer();
         UUID playerUUID = player.getUniqueId();
 
-        // เช็คว่าผู้เล่นกำลังจะ "เลิกย่อ" และกำลังอุ้มบล็อกอยู่
         if (!event.isSneaking() && carriedBlocks.containsKey(playerUUID)) {
             FallingBlock fallingBlock = carriedBlocks.get(playerUUID);
-
-            // วางบล็อกลงที่ตำแหน่งของผู้เล่น
-            player.eject(); // ปล่อยบล็อกออกจากตัว
+            player.eject();
             Location dropLocation = player.getLocation().getBlock().getLocation();
             dropLocation.getBlock().setBlockData(fallingBlock.getBlockData());
-
-            fallingBlock.remove(); // ลบ FallingBlock ทิ้ง
+            fallingBlock.remove();
             carriedBlocks.remove(playerUUID);
             player.sendMessage("§aคุณวางบล็อกลงแล้ว!");
         }
     }
 
-    // --- ป้องกันไม่ให้ FallingBlock ของเรากลายเป็นบล็อกเอง ---
     @EventHandler
     public void onFallingBlockLand(EntityChangeBlockEvent event) {
         if (event.getEntity() instanceof FallingBlock) {
-            // เช็คจาก Metadata ว่าเป็นบล็อกที่เราอุ้มอยู่หรือไม่
             if (event.getEntity().hasMetadata("CarriedBlock")) {
                 event.setCancelled(true);
             }
         }
     }
 
-    // --- จัดการกรณีผู้เล่นออกจากเกม ---
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
@@ -130,7 +121,6 @@ public class CarryListener implements Listener {
         }
     }
 
-    // --- ฟังก์ชันช่วยสำหรับวางบล็อก (ใช้ในหลายที่) ---
     private void dropCarriedBlock(Player player) {
         UUID playerUUID = player.getUniqueId();
         if (carriedBlocks.containsKey(playerUUID)) {
@@ -143,7 +133,6 @@ public class CarryListener implements Listener {
         }
     }
 
-    // --- ฟังก์ชันสำหรับตอนปิดปลั๊กอิน ---
     public void dropAllCarriedBlocks() {
         for (UUID playerUUID : carriedBlocks.keySet()) {
             Player player = plugin.getServer().getPlayer(playerUUID);
