@@ -1,6 +1,18 @@
-# RealCarry Plugin Configuration
-# by NonKungCH
+############################
+#       by NonKungCH       #
+# --- RealCarry Config --- #
+############################
 
-# Set the language file for plugin messages.
-# This should match a file name in the 'lang' folder (e.g., 'en', 'th').
+# Language file to use ('en' for en.yml, 'th' for th.yml)
 language: 'en'
+
+# Slowness level applied while carrying.
+# 1 = Slowness I, 2 = Slowness II, etc.
+# Set to 0 to disable slowness.
+carrying-slowness-level: 1
+
+features:
+  # Allow players to carry other players?
+  # This requires the permission 'realcarry.carry.player'
+  player-carrying: true
+  
