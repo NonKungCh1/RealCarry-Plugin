@@ -22,7 +22,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionEffectType; // <-- Import ถูกต้อง
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
@@ -77,7 +77,9 @@ public class CarryListener implements Listener {
                     // 1. ใส่ Slowness
                     if (slownessLevel > 0) {
                         // (level - 1) เพราะ PotionEffect เริ่มนับที่ 0 (0 = level I)
-                        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 30, slownessLevel - 1, true, false));
+                        
+                        // --- แก้ไขบรรทัดที่ 80 ---
+                        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, slownessLevel - 1, true, false));
                     }
 
                     // 2. เทเลพอร์ตของไปข้างหน้าผู้เล่น
@@ -300,7 +302,8 @@ public class CarryListener implements Listener {
 
         // ลบ Slowness
         if (slownessLevel > 0) {
-            player.removePotionEffect(PotionEffectType.SLOW);
+            // --- แก้ไขบรรทัดที่ 303 ---
+            player.removePotionEffect(PotionEffectType.SLOWNESS);
         }
 
         if (thing instanceof FallingBlock) {
