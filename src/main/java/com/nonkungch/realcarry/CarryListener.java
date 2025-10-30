@@ -45,11 +45,10 @@ public class CarryListener implements Listener {
         Player player = event.getPlayer();
         if (event.getHand() != EquipmentSlot.HAND) return;
 
-        // ตรวจสอบ: ผู้เล่นต้องย่อตัว, มือว่างเปล่า, ไม่อุ้มอยู่, และ "ไม่มี" สิทธิ์ realcarry.carry.entity
+        // ตรวจสอบ: ผู้เล่นต้องย่อตัว, มือว่างเปล่า, ไม่อุ้มอยู่
         if (player.isSneaking() &&
             player.getInventory().getItemInMainHand().getType() == Material.AIR &&
-            !carriedThings.containsKey(player.getUniqueId()) &&
-            !player.hasPermission("realcarry.carry.entity")) { // <-- แก้ไขตรงนี้: เติม '!'
+            !carriedThings.containsKey(player.getUniqueId())) {
 
             Entity clickedEntity = event.getRightClicked();
             List<String> blacklist = plugin.getLangConfig().getStringList("entity-blacklist");
@@ -73,11 +72,10 @@ public class CarryListener implements Listener {
         Player player = event.getPlayer();
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND) return;
 
-        // ตรวจสอบ: ผู้เล่นต้องย่อตัว, มือว่างเปล่า, ไม่อุ้มอยู่, และ "ไม่มี" สิทธิ์ realcarry.carry.block
+        // ตรวจสอบ: ผู้เล่นต้องย่อตัว, มือว่างเปล่า, ไม่อุ้มอยู่
         if (player.isSneaking() &&
             player.getInventory().getItemInMainHand().getType() == Material.AIR &&
-            !carriedThings.containsKey(player.getUniqueId()) &&
-            !player.hasPermission("realcarry.carry.block")) { // <-- แก้ไขตรงนี้: เติม '!'
+            !carriedThings.containsKey(player.getUniqueId())) {
 
             Block clickedBlock = event.getClickedBlock();
             if (clickedBlock == null || BLACKLISTED_BLOCKS.contains(clickedBlock.getType())) {

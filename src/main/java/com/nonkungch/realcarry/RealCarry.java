@@ -26,6 +26,9 @@ public final class RealCarry extends JavaPlugin {
 
         this.carryListener = new CarryListener(this);
         getServer().getPluginManager().registerEvents(this.carryListener, this);
+
+        // ลงทะเบียนคำสั่ง
+        getCommand("realcarry").setExecutor(new CarryCommand(this));
     }
 
     @Override
