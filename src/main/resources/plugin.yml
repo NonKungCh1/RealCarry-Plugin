@@ -1,15 +1,19 @@
 name: RealCarry
-version: 1.1
+version: 3.0
 main: com.nonkungch.realcarry.RealCarry
 api-version: 1.21
 author: NonKungCh
 description: A plugin that lets you carry mobs and blocks on your head.
+
+# --- เพิ่มส่วนนี้เข้าไป ---
+commands:
+  realcarry:
+    description: Main command for RealCarry.
+    usage: /<command> [reload]
+    aliases: [rc]
+
 permissions:
-  realcarry.carry.mob:
-    description: Allows players to carry mobs.
-    default: true
-  realcarry.carry.block:
-_permission_:
-    description: Allows players to carry blocks.
-    default: true
-    
+  realcarry.reload:
+    description: Allows reloading the plugin's configuration.
+    default: op
+# -------------------------
