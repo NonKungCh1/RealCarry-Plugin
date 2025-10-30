@@ -19,3 +19,11 @@ entity-blacklist:
   - "painting"
   - "falling_block"
   - "armor_stand"
+
+
+place-too-far: "&cคุณอยู่ไกลเกินไปที่จะวางสิ่งนั้น!"
+place-obstructed: "&cคุณไม่สามารถวางของตรงนี้ได้ มันมีบล็อกขวางอยู่"
+cannot-carry-player: "&cเซิร์ฟเวอร์นี้ปิดระบบอุ้มผู้เล่น"
+no-permission-player: "&cคุณไม่มีสิทธิ์ในการอุ้มผู้เล่น"
+no-permission-entity: "&cคุณไม่มีสิทธิ์ในการอุ้ม Entity"
+no-permission-block: "&cคุณไม่มีสิทธิ์ในการอุ้มบล็อก"
