@@ -91,12 +91,11 @@ public class CarryListener implements Listener {
                     thing.setVelocity(new Vector(0, 0, 0)); 
                     thing.setFallDistance(0);
                     
-                    // --- [เพิ่ม] ทำให้เป็นอมตะ และบังคับย่อ (นั่ง) ---
-                    thing.setInvulnerable(true); // ป้องกันดาเมจทุกชนิด
+                    // 3. ทำให้เป็นอมตะ และบังคับย่อ (นั่ง)
+                    thing.setInvulnerable(true); 
                     if (thing instanceof Player) {
-                        ((Player) thing).setSneaking(true); // บังคับท่าย่อ (เหมือนนั่ง)
+                        ((Player) thing).setSneaking(true); 
                     }
-                    // ---------------------------------------------
                 }
             }
         };
@@ -114,11 +113,13 @@ public class CarryListener implements Listener {
         Player player = event.getPlayer();
         if (event.getHand() != EquipmentSlot.HAND) return;
 
+        // ถ้ากำลังอุ้มอยู่ -> ห้ามคลิกขวา Entity อื่น
         if (carriedThings.containsKey(player.getUniqueId())) {
             event.setCancelled(true);
             return;
         }
 
+        // ถ้ายังไม่อุ้ม -> พยายามอุ้ม
         if (player.isSneaking() && player.getInventory().getItemInMainHand().getType() == Material.AIR) {
             Entity clickedEntity = event.getRightClicked();
             
@@ -155,8 +156,6 @@ public class CarryListener implements Listener {
             carriedThings.put(player.getUniqueId(), clickedEntity);
             clickedEntity.setMetadata("CarriedEntity", new FixedMetadataValue(plugin, true));
             clickedEntity.setPersistent(true); 
-            
-            // --- [เพิ่ม] เปิดอมตะทันทีที่อุ้ม ---
             clickedEntity.setInvulnerable(true);
 
             player.sendMessage(plugin.getMessage("carry-entity-success"));
@@ -169,12 +168,14 @@ public class CarryListener implements Listener {
         Player player = event.getPlayer();
         if (event.getHand() != EquipmentSlot.HAND) return;
 
+        // --- ส่วนที่ 1: ตรวจสอบการ "วาง" (ถ้ากำลังอุ้มอยู่) ---
         if (carriedThings.containsKey(player.getUniqueId())) {
-            event.setCancelled(true); 
+            event.setCancelled(true); // บล็อคทุกการกระทำ
 
+            // เงื่อนไขการวาง: ย่อ + คลิกขวาลงบล็อก
             if (player.isSneaking() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 Block clickedBlock = event.getClickedBlock();
-                if (clickedBlock == null) return;
+                if (clickedBlock == null) return; // คลิกอากาศ
 
                 Location placeLocation = clickedBlock.getRelative(event.getBlockFace()).getLocation();
 
@@ -191,9 +192,17 @@ public class CarryListener implements Listener {
                 dropCarriedThing(player, placeLocation, true); 
                 player.sendMessage(plugin.getMessage("place-success"));
             }
-            return; 
+            
+            // --- [ นี่คือจุดที่แก้ไข! ] ---
+            // ไม่ว่าผู้เล่นจะ "วาง" หรือแค่ "คลิกขวา"
+            // ถ้าเขากำลังอุ้มของอยู่, ให้ "หยุด" การทำงานของ Event นี้ทันที
+            // เพื่อป้องกันไม่ให้มันไหลลงไปเจอตรรกะการ "อุ้ม" (ส่วนที่ 2)
+            return;
+            // -----------------------------
         }
 
+        // --- ส่วนที่ 2: ตรวจสอบการ "อุ้ม" บล็อก (ถ้ายังไม่อุ้ม) ---
+        // (โค้ดส่วนนี้จะทำงาน "ก็ต่อเมื่อ" ส่วนที่ 1 ไม่เป็นจริง)
         if (player.isSneaking() &&
                 event.getAction() == Action.RIGHT_CLICK_BLOCK &&
                 player.getInventory().getItemInMainHand().getType() == Material.AIR) {
@@ -231,7 +240,7 @@ public class CarryListener implements Listener {
 
             FallingBlock fallingBlock = player.getWorld().spawnFallingBlock(spawnLocation, blockData);
             fallingBlock.setGravity(false);
-            fallingBlock.setInvulnerable(true); // --- [แก้ไข] เปิดอมตะทันทีที่อุ้ม
+            fallingBlock.setInvulnerable(true); 
             fallingBlock.setDropItem(false); 
             fallingBlock.setHurtEntities(false);
             fallingBlock.setMetadata("CarriedBlock", new FixedMetadataValue(plugin, true));
@@ -243,17 +252,6 @@ public class CarryListener implements Listener {
         }
     }
 
-    // --- [ลบ] เราไม่ต้องการ Event นี้แล้ว เพราะใช้ setInvulnerable() แทน ---
-    /*
-    @EventHandler
-    public void onFallingBlockLand(EntityChangeBlockEvent event) {
-        if (event.getEntity() instanceof FallingBlock && event.getEntity().hasMetadata("CarriedBlock")) {
-            event.setCancelled(true); 
-        }
-    }
-    */
-    // (หมายเหตุ: FallingBlock ที่ setInvulnerable(true) จะไม่กลายเป็นบล็อกเมื่อแตะพื้นอยู่แล้ว)
-    // --- [แก้ไข] เพิ่ม Event นี้กลับมา (ปลอดภัยไว้ก่อน) ---
     @EventHandler
     public void onFallingBlockLand(EntityChangeBlockEvent event) {
         if (event.getEntity() instanceof FallingBlock && event.getEntity().hasMetadata("CarriedBlock")) {
@@ -280,12 +278,10 @@ public class CarryListener implements Listener {
             player.removePotionEffect(PotionEffectType.SLOWNESS);
         }
 
-        // --- [เพิ่ม] ปิดอมตะ และคืนท่าทางปกติ ---
         thing.setInvulnerable(false);
         if (thing instanceof Player) {
-            ((Player) thing).setSneaking(false); // คืนท่าทางปกติ
+            ((Player) thing).setSneaking(false); 
         }
-        // -----------------------------------
 
         if (thing instanceof FallingBlock) {
             FallingBlock fallingBlock = (FallingBlock) thing;
