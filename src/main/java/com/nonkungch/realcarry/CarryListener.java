@@ -4,6 +4,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace; // (Import นี้ไม่ได้ใช้ แต่ปล่อยไว้ได้)
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
@@ -36,11 +37,6 @@ public class CarryListener implements Listener {
     private final HashMap<UUID, Entity> carriedThings = new HashMap<>();
     private final HashMap<UUID, ItemStack[]> carriedInventories = new HashMap<>();
     private BukkitRunnable carryTask;
-    
-    // --- [เพิ่ม] Cooldown กันบั๊ก ---
-    private final HashMap<UUID, Long> liftCooldown = new HashMap<>();
-    private static final long COOLDOWN_TIME_MS = 250; // 250ms = 5 Ticks
-    // -----------------------------
 
     private final int slownessLevel;
     private final boolean playerCarryingEnabled;
@@ -58,10 +54,14 @@ public class CarryListener implements Listener {
         this.playerCarryingEnabled = plugin.getConfig().getBoolean("features.player-carrying", true);
     }
 
+    /**
+     * [แก้ไข] Task อัปเดตตำแหน่ง, ป้องกันดาเมจ, และท่าทาง
+     */
     public void startCarryTask() {
         this.carryTask = new BukkitRunnable() {
             @Override
             public void run() {
+                // [เพิ่ม] ใช้ new HashSet เพื่อป้องกัน ConcurrentModificationException
                 for (UUID uuid : new java.util.HashSet<>(carriedThings.keySet())) {
                     Player player = plugin.getServer().getPlayer(uuid);
                     Entity thing = carriedThings.get(uuid);
@@ -73,30 +73,33 @@ public class CarryListener implements Listener {
                         continue;
                     }
 
+                    // [เพิ่ม] Feature 1: ตรวจสอบ Passenger (แก้บั๊กหลุด)
                     if (!player.getPassengers().contains(thing)) {
                         dropCarriedThing(player, player.getLocation(), false);
                         plugin.getLogger().warning("Dropped carried thing for " + player.getName() + " due to desync.");
                         continue;
                     }
-
+                    
                     if (slownessLevel > 0) {
                         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, slownessLevel - 1, true, false));
                     }
 
-                    Location targetLoc = player.getLocation().add(0, 1.0, 0); 
-                    targetLoc.add(player.getLocation().getDirection().multiply(1.2)); 
+                    // [แก้ไข] Feature 2: ย้ายตำแหน่งไป "ระดับมือ"
+                    Location targetLoc = player.getLocation().add(0, 1.0, 0); // เริ่มที่ระดับเอว/มือ
+                    targetLoc.add(player.getLocation().getDirection().multiply(1.2)); // ยื่นไปข้างหน้า
                     
                     if (thing instanceof FallingBlock) {
-                         targetLoc.setY(targetLoc.getY() - 0.5);
+                         targetLoc.setY(targetLoc.getY() - 0.5); // ปรับ Y สำหรับบล็อก
                     }
 
                     thing.teleport(targetLoc);
                     thing.setVelocity(new Vector(0, 0, 0)); 
-                    thing.setFallDistance(0);
+                    thing.setFallDistance(0); 
                     
+                    // [เพิ่ม] Feature 3 & 4: ป้องกันดาเมจ + บังคับย่อ
                     thing.setInvulnerable(true); 
                     if (thing instanceof Player) {
-                        ((Player) thing).setSneaking(true); 
+                        ((Player) thing).setSneaking(true); // บังคับ "นั่ง"
                     }
                 }
             }
@@ -110,6 +113,9 @@ public class CarryListener implements Listener {
         }
     }
 
+    /**
+     * [แก้ไข] Event อุ้ม Entity
+     */
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityInteract(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
@@ -140,7 +146,8 @@ public class CarryListener implements Listener {
                 }
             } 
             else {
-                if (false) { 
+                // [แก้ไข] Feature 5: ใส่ Permission กลับเข้ามา
+                if (!player.hasPermission("realcarry.carry.entity")) { 
                     player.sendMessage(plugin.getMessage("no-permission-entity"));
                     event.setCancelled(true);
                     return;
@@ -152,43 +159,33 @@ public class CarryListener implements Listener {
                 }
             }
 
-            player.addPassenger(clickedEntity);
+            // --- [แก้ไข] ทำการอุ้ม ---
+            player.addPassenger(clickedEntity); // Feature 1: เพิ่มเป็น Passenger
             carriedThings.put(player.getUniqueId(), clickedEntity);
             clickedEntity.setMetadata("CarriedEntity", new FixedMetadataValue(plugin, true));
             clickedEntity.setPersistent(true); 
-            clickedEntity.setInvulnerable(true);
-
-            // --- [เพิ่ม] ใส่ Cooldown ---
-            liftCooldown.put(player.getUniqueId(), System.currentTimeMillis());
+            clickedEntity.setInvulnerable(true); // Feature 3: ป้องกันดาเมจ
 
             player.sendMessage(plugin.getMessage("carry-entity-success"));
             event.setCancelled(true);
         }
     }
 
+    /**
+     * [แก้ไข] Event อุ้ม "บล็อก" และ วาง "ทุกอย่าง"
+     */
     @EventHandler(priority = EventPriority.HIGH)
     public void onBlockInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         if (event.getHand() != EquipmentSlot.HAND) return;
 
-        // --- ส่วนที่ 1: ตรวจสอบการ "วาง" (ถ้ากำลังอุ้มอยู่) ---
+        // --- ส่วนที่ 1: ตรวจสอบการ "วาง" (โค้ดนี้ถูกต้องอยู่แล้ว) ---
         if (carriedThings.containsKey(player.getUniqueId())) {
             event.setCancelled(true); 
 
-            // --- [เพิ่ม] ตรวจสอบ Cooldown ---
-            if (liftCooldown.containsKey(player.getUniqueId())) {
-                if (System.currentTimeMillis() - liftCooldown.get(player.getUniqueId()) < COOLDOWN_TIME_MS) {
-                    return; // เพิ่งอุ้มไป, ห้ามวางทันที
-                } else {
-                    liftCooldown.remove(player.getUniqueId()); // Cooldown หมดแล้ว
-                }
-            }
-            // -----------------------------
-
-            // เงื่อนไขการวาง: ย่อ + คลิกขวาลงบล็อก
             if (player.isSneaking() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 Block clickedBlock = event.getClickedBlock();
-                if (clickedBlock == null) return; 
+                if (clickedBlock == null) return;
 
                 Location placeLocation = clickedBlock.getRelative(event.getBlockFace()).getLocation();
 
@@ -196,17 +193,14 @@ public class CarryListener implements Listener {
                     player.sendMessage(plugin.getMessage("place-too-far"));
                     return;
                 }
-
                 if (!placeLocation.getBlock().getType().isAir()) {
                     player.sendMessage(plugin.getMessage("place-obstructed"));
                     return;
                 }
-
                 dropCarriedThing(player, placeLocation, true); 
                 player.sendMessage(plugin.getMessage("place-success"));
             }
-            
-            return; // หยุดการทำงานทันที (ไม่ว่าจะวางหรือไม่)
+            return; // (return; นี้สำคัญมาก และถูกต้องแล้ว)
         }
 
         // --- ส่วนที่ 2: ตรวจสอบการ "อุ้ม" บล็อก (ถ้ายังไม่อุ้ม) ---
@@ -214,7 +208,8 @@ public class CarryListener implements Listener {
                 event.getAction() == Action.RIGHT_CLICK_BLOCK &&
                 player.getInventory().getItemInMainHand().getType() == Material.AIR) {
 
-            if (false) { 
+            // [แก้ไข] Feature 5: ใส่ Permission กลับเข้ามา
+            if (!player.hasPermission("realcarry.carry.block")) {
                 player.sendMessage(plugin.getMessage("no-permission-block"));
                 event.setCancelled(true);
                 return;
@@ -240,24 +235,23 @@ public class CarryListener implements Listener {
             }
 
             BlockData blockData = clickedBlock.getBlockData();
+            // [แก้ไข] Feature 2: ย้ายจุดเกิดบล็อกไปที่ "มือ"
             Location spawnLocation = player.getLocation().add(0, 1.0, 0).add(player.getLocation().getDirection().multiply(1.2));
-            spawnLocation.setY(spawnLocation.getY() - 0.5); 
+            spawnLocation.setY(spawnLocation.getY() - 0.5); // ปรับ Y สำหรับบล็อก
             
             clickedBlock.setType(Material.AIR); 
 
             FallingBlock fallingBlock = player.getWorld().spawnFallingBlock(spawnLocation, blockData);
             fallingBlock.setGravity(false);
-            fallingBlock.setInvulnerable(true); 
+            fallingBlock.setInvulnerable(true); // Feature 3: ป้องกันดาเมจ
             fallingBlock.setDropItem(false); 
             fallingBlock.setHurtEntities(false);
             fallingBlock.setMetadata("CarriedBlock", new FixedMetadataValue(plugin, true));
 
-            player.addPassenger(fallingBlock);
+            // --- [แก้ไข] ทำการอุ้ม ---
+            player.addPassenger(fallingBlock); // Feature 1: เพิ่มเป็น Passenger
             carriedThings.put(player.getUniqueId(), fallingBlock);
             
-            // --- [เพิ่ม] ใส่ Cooldown ---
-            liftCooldown.put(player.getUniqueId(), System.currentTimeMillis());
-
             player.sendMessage(plugin.getMessage("carry-success"));
         }
     }
@@ -269,7 +263,6 @@ public class CarryListener implements Listener {
         }
     }
 
-
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         if (carriedThings.containsKey(event.getPlayer().getUniqueId())) {
@@ -277,21 +270,27 @@ public class CarryListener implements Listener {
         }
     }
 
+    /**
+     * [แก้ไข] เมธอด "วาง" หรือ "ทำตก"
+     */
     public void dropCarriedThing(Player player, Location dropLocation, boolean isPlacing) {
         UUID playerUUID = player.getUniqueId();
         Entity thing = carriedThings.get(playerUUID);
         if (thing == null) return;
 
-        player.removePassenger(thing);
+        // --- [เพิ่ม] แก้ไขการวาง ---
+        player.removePassenger(thing); // Feature 1: เอาออกจากตัว
 
         if (slownessLevel > 0) {
-            player.removePotionEffect(PotionEffectType.SLOWNESS);
+            player.removePotionEffect(PotionEffectType.SLOWNESS); 
         }
-
+        
+        // Feature 3 & 4: คืนค่าอมตะ และ ท่าทาง
         thing.setInvulnerable(false);
         if (thing instanceof Player) {
             ((Player) thing).setSneaking(false); 
         }
+        // -------------------------
 
         if (thing instanceof FallingBlock) {
             FallingBlock fallingBlock = (FallingBlock) thing;
@@ -316,12 +315,10 @@ public class CarryListener implements Listener {
         }
         
         carriedThings.remove(playerUUID);
-        
-        // --- [เพิ่ม] ล้าง Cooldown ---
-        liftCooldown.remove(playerUUID);
     }
 
     public void dropAllCarriedThings() {
+        // (โค้ดนี้ถูกต้องอยู่แล้ว)
         for (UUID playerUUID : new java.util.HashSet<>(carriedThings.keySet())) {
             Player player = plugin.getServer().getPlayer(playerUUID);
             if (player != null && player.isOnline()) {
@@ -330,7 +327,6 @@ public class CarryListener implements Listener {
         }
         carriedThings.clear();
         carriedInventories.clear();
-        liftCooldown.clear(); // --- [เพิ่ม] ---
     }
 
     public HashMap<UUID, Entity> getCarriedThings() {
