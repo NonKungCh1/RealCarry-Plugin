@@ -36,6 +36,11 @@ public class CarryListener implements Listener {
     private final HashMap<UUID, Entity> carriedThings = new HashMap<>();
     private final HashMap<UUID, ItemStack[]> carriedInventories = new HashMap<>();
     private BukkitRunnable carryTask;
+    
+    // --- [เพิ่ม] Cooldown กันบั๊ก ---
+    private final HashMap<UUID, Long> liftCooldown = new HashMap<>();
+    private static final long COOLDOWN_TIME_MS = 250; // 250ms = 5 Ticks
+    // -----------------------------
 
     private final int slownessLevel;
     private final boolean playerCarryingEnabled;
@@ -74,12 +79,10 @@ public class CarryListener implements Listener {
                         continue;
                     }
 
-                    // 1. ใส่ Slowness
                     if (slownessLevel > 0) {
                         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 30, slownessLevel - 1, true, false));
                     }
 
-                    // 2. เทเลพอร์ตของไป "ระดับมือ"
                     Location targetLoc = player.getLocation().add(0, 1.0, 0); 
                     targetLoc.add(player.getLocation().getDirection().multiply(1.2)); 
                     
@@ -91,7 +94,6 @@ public class CarryListener implements Listener {
                     thing.setVelocity(new Vector(0, 0, 0)); 
                     thing.setFallDistance(0);
                     
-                    // 3. ทำให้เป็นอมตะ และบังคับย่อ (นั่ง)
                     thing.setInvulnerable(true); 
                     if (thing instanceof Player) {
                         ((Player) thing).setSneaking(true); 
@@ -113,13 +115,11 @@ public class CarryListener implements Listener {
         Player player = event.getPlayer();
         if (event.getHand() != EquipmentSlot.HAND) return;
 
-        // ถ้ากำลังอุ้มอยู่ -> ห้ามคลิกขวา Entity อื่น
         if (carriedThings.containsKey(player.getUniqueId())) {
             event.setCancelled(true);
             return;
         }
 
-        // ถ้ายังไม่อุ้ม -> พยายามอุ้ม
         if (player.isSneaking() && player.getInventory().getItemInMainHand().getType() == Material.AIR) {
             Entity clickedEntity = event.getRightClicked();
             
@@ -158,6 +158,9 @@ public class CarryListener implements Listener {
             clickedEntity.setPersistent(true); 
             clickedEntity.setInvulnerable(true);
 
+            // --- [เพิ่ม] ใส่ Cooldown ---
+            liftCooldown.put(player.getUniqueId(), System.currentTimeMillis());
+
             player.sendMessage(plugin.getMessage("carry-entity-success"));
             event.setCancelled(true);
         }
@@ -170,12 +173,22 @@ public class CarryListener implements Listener {
 
         // --- ส่วนที่ 1: ตรวจสอบการ "วาง" (ถ้ากำลังอุ้มอยู่) ---
         if (carriedThings.containsKey(player.getUniqueId())) {
-            event.setCancelled(true); // บล็อคทุกการกระทำ
+            event.setCancelled(true); 
+
+            // --- [เพิ่ม] ตรวจสอบ Cooldown ---
+            if (liftCooldown.containsKey(player.getUniqueId())) {
+                if (System.currentTimeMillis() - liftCooldown.get(player.getUniqueId()) < COOLDOWN_TIME_MS) {
+                    return; // เพิ่งอุ้มไป, ห้ามวางทันที
+                } else {
+                    liftCooldown.remove(player.getUniqueId()); // Cooldown หมดแล้ว
+                }
+            }
+            // -----------------------------
 
             // เงื่อนไขการวาง: ย่อ + คลิกขวาลงบล็อก
             if (player.isSneaking() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 Block clickedBlock = event.getClickedBlock();
-                if (clickedBlock == null) return; // คลิกอากาศ
+                if (clickedBlock == null) return; 
 
                 Location placeLocation = clickedBlock.getRelative(event.getBlockFace()).getLocation();
 
@@ -193,16 +206,10 @@ public class CarryListener implements Listener {
                 player.sendMessage(plugin.getMessage("place-success"));
             }
             
-            // --- [ นี่คือจุดที่แก้ไข! ] ---
-            // ไม่ว่าผู้เล่นจะ "วาง" หรือแค่ "คลิกขวา"
-            // ถ้าเขากำลังอุ้มของอยู่, ให้ "หยุด" การทำงานของ Event นี้ทันที
-            // เพื่อป้องกันไม่ให้มันไหลลงไปเจอตรรกะการ "อุ้ม" (ส่วนที่ 2)
-            return;
-            // -----------------------------
+            return; // หยุดการทำงานทันที (ไม่ว่าจะวางหรือไม่)
         }
 
         // --- ส่วนที่ 2: ตรวจสอบการ "อุ้ม" บล็อก (ถ้ายังไม่อุ้ม) ---
-        // (โค้ดส่วนนี้จะทำงาน "ก็ต่อเมื่อ" ส่วนที่ 1 ไม่เป็นจริง)
         if (player.isSneaking() &&
                 event.getAction() == Action.RIGHT_CLICK_BLOCK &&
                 player.getInventory().getItemInMainHand().getType() == Material.AIR) {
@@ -247,6 +254,9 @@ public class CarryListener implements Listener {
 
             player.addPassenger(fallingBlock);
             carriedThings.put(player.getUniqueId(), fallingBlock);
+            
+            // --- [เพิ่ม] ใส่ Cooldown ---
+            liftCooldown.put(player.getUniqueId(), System.currentTimeMillis());
 
             player.sendMessage(plugin.getMessage("carry-success"));
         }
@@ -306,6 +316,9 @@ public class CarryListener implements Listener {
         }
         
         carriedThings.remove(playerUUID);
+        
+        // --- [เพิ่ม] ล้าง Cooldown ---
+        liftCooldown.remove(playerUUID);
     }
 
     public void dropAllCarriedThings() {
@@ -317,6 +330,7 @@ public class CarryListener implements Listener {
         }
         carriedThings.clear();
         carriedInventories.clear();
+        liftCooldown.clear(); // --- [เพิ่ม] ---
     }
 
     public HashMap<UUID, Entity> getCarriedThings() {
