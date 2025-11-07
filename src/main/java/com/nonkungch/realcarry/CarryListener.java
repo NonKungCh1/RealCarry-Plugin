@@ -4,7 +4,6 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace; // (Import นี้ไม่ได้ใช้ แต่ปล่อยไว้ได้)
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
@@ -253,6 +252,10 @@ public class CarryListener implements Listener {
             carriedThings.put(player.getUniqueId(), fallingBlock);
             
             player.sendMessage(plugin.getMessage("carry-success"));
+
+            // --- [!!! นี่คือจุดที่แก้ไข บรรทัดที่ผมลืมใส่ !!!] ---
+            event.setCancelled(true); 
+            // ---------------------------------------------------
         }
     }
 
