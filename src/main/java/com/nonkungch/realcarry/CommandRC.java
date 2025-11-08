@@ -1,6 +1,6 @@
-package com.nonkungch.realcarry;
+package com.nonkungch.realcarry; // <--- ตรวจสอบ package ว่าอยู่ใน 'commands'
 
-import com.nonkungch.realcarry.RealCarry;
+import com.nonkungch.realcarry.RealCarry; // <--- import คลาสหลัก
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -26,12 +26,12 @@ public class CommandRC implements CommandExecutor {
         if (args[0].equalsIgnoreCase("reload")) {
             // /rc reload
             if (!sender.hasPermission("realcarry.reload")) {
-                sender.sendMessage(plugin.getMsg("no-permission"));
+                sender.sendMessage(plugin.getMsg("no-permission")); // <--- ใช้ getMsg
                 return true;
             }
             
-            plugin.reloadPluginConfig();
-            sender.sendMessage(plugin.getMsg("plugin-reloaded"));
+            plugin.reloadPluginConfig(); // <--- ใช้ reloadPluginConfig
+            sender.sendMessage(plugin.getMsg("plugin-reloaded")); // <--- ใช้ getMsg
             return true;
         }
 

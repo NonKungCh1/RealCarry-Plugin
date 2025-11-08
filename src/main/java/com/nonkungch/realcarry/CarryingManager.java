@@ -11,7 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionEffectType; // <--- ตรวจสอบว่า import ถูกต้อง
 
 import java.util.HashMap;
 import java.util.UUID;
@@ -60,7 +60,10 @@ public class CarryingManager {
         
         // ทำให้ Armor Stand "สวม" บล็อกนั้น
         armorStand.getEquipment().setHelmet(new ItemStack(type));
-        armorStand.addEquipmentLock(EquipmentSlot.HEAD, ArmorStand.LockType.READ_ONLY);
+        
+        // *** 🔧 จุดแก้ไขที่ 1 ***
+        // (เปลี่ยนจาก READ_ONLY เป็น REMOVING_OR_CHANGING เพื่อรองรับ API ที่เก่ากว่า)
+        armorStand.addEquipmentLock(EquipmentSlot.HEAD, ArmorStand.LockType.REMOVING_OR_CHANGING);
 
         // ให้ Armor Stand ขี่ผู้เล่น
         player.addPassenger(armorStand);
@@ -102,11 +105,16 @@ public class CarryingManager {
     // --- Slowness Effect ---
     private void applySlowEffect(Player player) {
         int level = plugin.getConfig().getInt("slowness-level", 0);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, Integer.MAX_VALUE, level, true, false));
+        
+        // *** 🔧 จุดแก้ไขที่ 2 ***
+        // (เปลี่ยนจาก SLOW เป็น SLOWNESS)
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, Integer.MAX_VALUE, level, true, false));
     }
 
     private void removeSlowEffect(Player player) {
-        player.removePotionEffect(PotionEffectType.SLOW);
+        // *** 🔧 จุดแก้ไขที่ 3 ***
+        // (เปลี่ยนจาก SLOW เป็น SLOWNESS)
+        player.removePotionEffect(PotionEffectType.SLOWNESS);
     }
     
     // --- Cleanup ---

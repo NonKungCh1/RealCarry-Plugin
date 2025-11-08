@@ -1,6 +1,6 @@
 package com.nonkungch.realcarry;
 
-import com.nonkungch.realcarry.commands.CommandRC;
+import com.nonkungch.realcarry.CommandRC; // <--- ตรวจสอบว่า import ถูกต้อง
 import org.bukkit.ChatColor;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -20,7 +20,7 @@ public class RealCarry extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new CarryListener(this, carryingManager), this);
 
         // ลงทะเบียน Commands
-        getCommand("rc").setExecutor(new CommandRC(this));
+        getCommand("rc").setExecutor(new CommandRC(this)); // <--- ตรวจสอบว่าใช้ CommandRC
 
         getLogger().info("RealCarry Plugin (v1.1) ได้เปิดใช้งานแล้ว!");
     }
