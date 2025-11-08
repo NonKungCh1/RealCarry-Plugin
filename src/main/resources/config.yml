@@ -3,16 +3,14 @@
 # --- RealCarry Config --- #
 ############################
 
-# Language file to use ('en' for en.yml, 'th' for th.yml)
-language: 'en'
+# ระดับความช้า (Slowness) ที่จะใช้ขณะอุ้ม (0 = Slowness 1, 1 = Slowness 2)
+slowness-level: 0
 
-# Slowness level applied while carrying.
-# 1 = Slowness I, 2 = Slowness II, etc.
-# Set to 0 to disable slowness.
-carrying-slowness-level: 1
-
-features:
-  # Allow players to carry other players?
-  # This requires the permission 'realcarry.carry.player'
-  player-carrying: true
-  
+# ข้อความ
+messages:
+  plugin-reloaded: "&aRealCarry config ถูกรีโหลดแล้ว!"
+  no-permission: "&cคุณไม่มีสิทธิ์ใช้คำสั่งนี้"
+  carrying-block: "&aคุณอุ้ม %block% ขึ้นมา!"
+  carrying-entity: "&aคุณอุ้ม %entity% ขึ้นมา!"
+  placed-object: "&eคุณวางสิ่งที่อุ้มลงแล้ว!"
+  already-carrying: "&cคุณอุ้มของอยู่แล้ว!"
