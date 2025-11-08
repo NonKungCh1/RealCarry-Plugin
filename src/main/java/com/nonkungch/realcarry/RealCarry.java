@@ -1,118 +1,50 @@
 package com.nonkungch.realcarry;
 
+import com.nonkungch.realcarry.commands.CommandRC;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+public class RealCarry extends JavaPlugin {
 
-public final class RealCarry extends JavaPlugin {
-
-    private CarryListener carryListener;
-    private FileConfiguration langConfig = null;
-    private File langFile = null;
+    private CarryingManager carryingManager;
 
     @Override
     public void onEnable() {
-        getLogger().info("RealCarry Plugin has been enabled!");
+        // โหลด Config
+        saveDefaultConfig();
 
-        saveDefaultConfig(); 
-        loadLang();
+        // สร้างและส่งต่อ Manager
+        this.carryingManager = new CarryingManager(this);
+        
+        // ลงทะเบียน Events
+        getServer().getPluginManager().registerEvents(new CarryListener(this, carryingManager), this);
 
-        this.carryListener = new CarryListener(this); 
-        getServer().getPluginManager().registerEvents(this.carryListener, this);
+        // ลงทะเบียน Commands
+        getCommand("rc").setExecutor(new CommandRC(this));
 
-        getCommand("realcarry").setExecutor(new CarryCommand(this));
-
-        this.carryListener.startCarryTask();
+        getLogger().info("RealCarry Plugin (v1.1) ได้เปิดใช้งานแล้ว!");
     }
 
     @Override
     public void onDisable() {
-        if (carryListener != null) {
-            carryListener.stopCarryTask();
-            carryListener.dropAllCarriedThings();
+        // จัดการเคลียร์การอุ้มทั้งหมดเมื่อปิด Plugin
+        if (carryingManager != null) {
+            carryingManager.clearAllCarrying();
         }
-        getLogger().info("RealCarry Plugin has been disabled.");
+        getLogger().info("RealCarry Plugin ได้ปิดใช้งานแล้ว");
     }
 
-    /**
-     * ตรวจสอบว่าผู้เล่นกำลังอุ้มอะไรอยู่หรือไม่ (สำหรับ Addon)
-     */
-    public boolean isPlayerCarrying(Player player) {
-        if (carryListener != null) {
-            // --- [แก้ไข บรรทัดที่ 60] ---
-            return carryListener.isPlayerCarrying(player);
-            // -------------------------
-        }
-        return false;
+    // สำหรับ /rc reload
+    public void reloadPluginConfig() {
+        reloadConfig();
     }
 
-    /**
-     * ดึง Entity ที่ผู้เล่นกำลังอุ้มอยู่ (สำหรับ Addon)
-     */
-    public Entity getCarriedEntity(Player player) {
-        if (carryListener != null) {
-            // --- [แก้ไข บรรทัดที่ 72] ---
-            return carryListener.getCarriedEntity(player);
-            // -------------------------
+    // Helper method สำหรับส่งข้อความ
+    public String getMsg(String configPath) {
+        String msg = getConfig().getString("messages." + configPath);
+        if (msg == null) {
+            return ChatColor.RED + "Missing message: " + configPath;
         }
-        return null;
-    }
-
-    /**
-     * API method to force a player to drop what they are carrying.
-     */
-    public void forceDrop(Player player, Location dropLocation) {
-        if (carryListener != null && isPlayerCarrying(player)) {
-            carryListener.dropCarriedThing(player, dropLocation, false); 
-        }
-    }
-
-    // --- (โค้ดส่วนที่เหลือของคุณ ไม่ต้องแก้) ---
-    public String getMessage(String path) {
-        String message = getLangConfig().getString(path);
-        if (message == null) {
-            return ChatColor.RED + "Message not found: " + path;
-        }
-        return ChatColor.translateAlternateColorCodes('&', message);
-    }
-
-    public FileConfiguration getLangConfig() {
-        if (langConfig == null) {
-            loadLang();
-        }
-        return this.langConfig;
-    }
-
-    public void loadLang() {
-        File langDir = new File(getDataFolder(), "lang");
-        if (!langDir.exists()) {
-            langDir.mkdirs();
-        }
-        saveResource("lang/en.yml", false);
-        saveResource("lang/th.yml", false);
-        String langFileName = getConfig().getString("language", "en") + ".yml";
-        langFile = new File(langDir, langFileName);
-        if (!langFile.exists()) {
-            getLogger().warning("Language file " + langFileName + " not found! Defaulting to en.yml.");
-            langFile = new File(langDir, "en.yml");
-        }
-        langConfig = YamlConfiguration.loadConfiguration(langFile);
-        try (InputStream defaultStream = getResource("lang/" + langFile.getName())) {
-            if (defaultStream != null) {
-                langConfig.setDefaults(YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8)));
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        getLogger().info("Loaded language file: " + langFile.getName());
+        return ChatColor.translateAlternateColorCodes('&', msg);
     }
 }
