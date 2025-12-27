@@ -1,5 +1,5 @@
 name: RealCarry
-version: 4.0.3
+version: 4.2.0
 main: com.nonkungch.realcarry.RealCarry # <--- แก้ไข
 api-version: 1.21 
 author: NonKungCh # <--- แก้ไข
