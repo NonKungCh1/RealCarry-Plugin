@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.nonkungch</groupId>
     <artifactId>RealCarry</artifactId>
-    <version>0.0</version>
+    <version>26.1</version>
     <packaging>jar</packaging>
 
     <properties>
